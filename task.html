@@ -1,0 +1,529 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+      
+     .category-filter, .price-filter, .sort-select, .favorite-filter {
+        border: 1px solid black;
+        margin: 5px;
+        padding: 10px;
+     }   
+     .price-filter__input {
+         margin: 2px;
+     }
+
+      li {
+        list-style: none;
+        border: 1px solid black;
+        padding-left: 80px;
+        margin-bottom: 15px;
+      }
+
+      .advertisment {
+          width: 600px;
+      }
+
+      .title {
+          font-weight: bold;
+        
+      }
+      
+      .favorite {
+          width: 10px;
+          height: 10px;
+          border : 1px solid black;
+          margin-bottom: 10px;
+      }
+
+  </style>
+</head>
+
+<body>
+
+    <div class = "category-filter"> Фильтр по категории <br>
+          
+        <input type="radio" name="category" value="immovable"> Недвижимость<Br>
+        <input type="radio" name="category" value="cameras"> Камеры<Br>
+        <input type="radio" name="category" value="auto"> Авто<Br>
+        <input type="radio" name="category" value="laptops"> Ноутбуки<Br>
+               
+    </div>
+
+    <div class = "price-filter"> Фильтр по цене <br>
+        <input class = "price-filter__input input_price-low" type="number" name="price-low" value="" min ="0">с<Br>
+        <input class = "price-filter__input input_price-high" type="number" name="price-high" value="" min ="1">до<Br>
+    </div>
+
+    <select class = "sort-select">
+        <option value = "sort-reset">Сортировать</option>
+        <option name = "sort-by-rate" value = "sort-by-rate">Сначала популярные (по рейтингу)</option>
+        <option name = "sort-by-price" value = "sort-by-price">Сначала дешевле (по цене)</option>
+    </select>
+
+    <div class = "favorite-filter"> Показать только избранные объявления <br>
+        <input type="checkbox" name="favorite" value="Показать только избранные объявления"> <Br>
+    </div>
+
+
+    <div class = "advertisment">
+        <ul class = "advertisment__list">
+
+        </ul>
+    </div>
+  
+
+
+<script>
+
+/*
+    Читаю книжку по ES6. Пытаюсь использовать новые фичи.
+    Для удобства проверки весь код ниже.
+*/
+
+
+//создаём массивы, куда загружаем JSON-файлы
+let products = [];
+let sellers = [];
+
+//массив advertItems, в который войдут
+//только необходимые данные при самой первой загрузке данных с сервера, не изменяем его.
+let advertItems = [];
+
+//массив для применения фильтров, сортировки и т.д. При перезагрузке страницы 
+//будет сохранен в sessionStorage
+let advertItemsWork = [];
+
+//получить элементы-фильтры и повесить на них обработчик
+let filterCat = document.getElementsByName('category');
+let filterPrice = document.querySelectorAll('.price-filter');
+let filterFavorite = document.getElementsByName('favorite')[0];
+
+//функция, фильтрует рабочий массив по категории
+let filterByCatFunc = (advertItemsWork, category) => {
+    
+    let newAdvertItemsWork = [];
+
+    newAdvertItemsWork = advertItemsWork.filter( (item) => {
+        return (item.get('category') == category )
+    });
+    
+    if (newAdvertItemsWork.length > 0) {
+        return newAdvertItemsWork 
+    } else {
+        return;
+    }
+};
+
+//обработчик на элементы выбора категории
+for (inputRadio of filterCat) {
+    inputRadio.onchange = () => {
+        //сбросить селектор сортировки
+        sortSelect.selectedIndex = 0;
+        //отфильтровать и отрисовать в соответствии с текущими настройками
+        filterAll(advertItemsWork);
+    }; 
+};
+
+//функция, фильтрует рабочий массив по цене
+let filterByPriceFunc = (advertItemsWork) => {
+
+    let priceLow = document.querySelector('.input_price-low').value;
+    let priceHigh = document.querySelector('.input_price-high').value;
+
+    //если один из ценовых диапазонов пуст, то выйти
+    if (priceLow == '' || priceHigh == '') {
+        return;
+    };
+
+    //преобразруем вводимые данные к числу
+    priceLow = + priceLow;
+    priceHigh = + priceHigh;
+
+    if (priceHigh <= priceLow) {
+        alert(`Цена "с" больше или равна цене "до"!`);
+        return;
+    }; 
+    
+    //отфильтровать рабочий массив
+    let newAdvertItemsWork = [];
+    newAdvertItemsWork = advertItemsWork.filter( (item) => {
+        return (item.get('price') <= priceHigh && item.get('price') >= priceLow );
+    });
+
+    
+    if (newAdvertItemsWork.length > 0) {
+        return newAdvertItemsWork 
+    } else {
+        return;
+    }
+
+};
+
+//обработчик для полей ввода цены
+for (priceField of filterPrice) {
+    priceField.onchange = () => {
+        //отфильтровать и отрисовать в соответствии с текущими настройками
+        filterAll(advertItemsWork);
+    };
+};
+
+//функция, показать только избранные
+let filterByFavorite = (advertItemsWork) => {
+
+    //отфильтровать массив по избранному
+    let newAdvertItemsWork = [];
+    newAdvertItemsWork = advertItemsWork.filter( (item) => {
+         return (item.get('isFavorite') == true);
+    })
+    
+    return newAdvertItemsWork; 
+};
+
+//обработчик для "показать только избранные"
+filterFavorite.onchange = () => {
+    
+    //получить элемент "показать только избранные"
+    let target = document.getElementsByName('favorite')[0];
+
+    if (target.checked == true) {
+        //если флажок установлен,
+        //применить фильтр по избранному
+        newAdvertItemsWork = filterByFavorite (advertItemsWork) || advertItemsWork ;
+        //отрисовать список с учётом фильтров
+        let ulNode = document.querySelector('.advertisment__list');
+        renderAdvertList(ulNode,newAdvertItemsWork);
+
+    } else {
+         //отфильтровать и отрисовать в соответствии с текущими настройками
+        filterAll(advertItemsWork);
+    }
+};
+
+//функция, переключающая флажок "Добавить в избранное" для объявления
+let favoriteToggle = (e) => {
+    let target = e.target;
+    
+    //перевести флаг "добавить в избранное" в рабочий массив
+    let currFavoriteFlag = advertItemsWork[target.arrId].get('isFavorite'); 
+    advertItemsWork[target.arrId].set('isFavorite', !currFavoriteFlag);
+    
+     //отфильтровать и отрисовать в соответствии с текущими настройками
+     filterAll(advertItemsWork);
+    
+};
+
+//функция, фильтрует по существующим категориям, цене и т.д
+let filterAll = (advertItemsWork) => {
+    
+    //сбросить флажок показать только избранные при смене категории
+    let target = document.getElementsByName('favorite')[0];
+    target.checked = false;
+
+    //текущая категория
+    let category = '';
+    for (inputRadio of filterCat) {
+        if (inputRadio.checked == true) {
+            category = inputRadio.value;
+            break;
+        };
+    };
+
+    //сбросить селектор сортировки
+    if (sortSelect.selectedIndex == 0) {
+        sortSelect.selectedIndex = 0;
+    }
+
+    let newAdvertItemsWork = [];
+
+    //применить фильтр по категории
+    newAdvertItemsWork = filterByCatFunc (advertItemsWork, category) || advertItemsWork;
+
+    //применить фильтрация по цене
+    newAdvertItemsWork = filterByPriceFunc(newAdvertItemsWork) || newAdvertItemsWork;
+
+    //отрисовать список с учётом фильтров
+    let ulNode = document.querySelector('.advertisment__list');
+    renderAdvertList(ulNode,newAdvertItemsWork);
+    
+    return newAdvertItemsWork;
+
+};
+
+//функция сортировки по убыванию рейтинга
+let sortByRateFunc = (advertItemsWork) => {
+
+    //функция для проверки рейтинга двух объявлений
+    let compareRating = (mapA, mapB) => {
+        if (mapA.get('sellerRating') < mapB.get('sellerRating')) return 1;
+        if (mapA.get('sellerRating') > mapB.get('sellerRating')) return -1;
+    };
+
+    let newAdvertItemsWork = [];
+
+    //применить сортировку
+    newAdvertItemsWork = advertItemsWork.sort(compareRating);
+
+    //отрисовать список с учётом фильтров
+    let ulNode = document.querySelector('.advertisment__list');
+        renderAdvertList(ulNode,newAdvertItemsWork);
+};
+
+//функция сортировки по возрастанию цены
+let sortByPriceFunc = (advertItemsWork) => {
+
+    //функция для проверки цены двух объявлений
+    let comparePrice = (mapA, mapB) => {
+        if (mapA.get('price') > mapB.get('price')) return 1;
+        if (mapA.get('price') < mapB.get('price')) return -1;
+    };
+
+    let newAdvertItemsWork = [];
+
+    //применить сортировку
+    newAdvertItemsWork = advertItemsWork.sort(comparePrice);
+
+    //отрисовать список с учётом фильтров
+    let ulNode = document.querySelector('.advertisment__list');
+        renderAdvertList(ulNode,newAdvertItemsWork);
+};
+
+
+//установить обработчик на селектор сортировки объявлений
+let sortSelect = document.querySelector('.sort-select');
+sortSelect.onchange = (e) => {
+
+    let target = e.target;
+    //если сортировка по рейтингу
+    if (target.value == 'sort-by-rate') {
+
+        let newAdvertItemsWork = [];
+        //применить существующие фильтры
+        newAdvertItemsWork = filterAll (advertItemsWork);
+        //отсортировать
+        sortByRateFunc (newAdvertItemsWork);
+        return;
+    };
+
+    //если сортировка по цене
+    if (target.value == 'sort-by-price') {
+
+        let newAdvertItemsWork = [];
+        //применить существующие фильтры
+        newAdvertItemsWork = filterAll (advertItemsWork);
+        //отсортировать
+        sortByPriceFunc (newAdvertItemsWork);
+        return;
+    };
+
+    //если сортировка убрана
+    if (target.value == 'sort-reset') {
+
+        let newAdvertItemsWork = [];
+        //применить существующие фильтры
+        filterAll (advertItemsWork);
+        return;
+    };
+       
+}
+    
+
+//функция рендерит список объявлений 
+//на вход узел ul объявлений и массив объявлений 
+let renderAdvertList = (ulNode, advertItems) => {
+
+    //запомнить родителя списка объявлений
+    let ulNodeParent = ulNode.parentElement;
+
+    //очистить текущий список объявлений
+    ulNode.remove();
+    ulNodeParent.innerHTML =
+    `<ul class = "advertisment__list"></ul>`;
+    
+    //рендеринг массива объявлений
+    let i = 0;//порядковый номер для сохранения индекса
+    for (item of advertItems.values()) {
+
+        //создаём элеммент списка
+        let li = document.createElement('li');
+        //для удобства добавляем классы
+        li.classList.add(`${item.get('category')}`);
+        li.classList.add(`list__item`);
+        ulNodeParent.querySelector('.advertisment__list').appendChild(li);
+
+        //создаём тег для изображения и указываем ссылку на скачивание
+        let img = document.createElement('img');
+        img.setAttribute('src', `https:${item.get('pictures')[0]}`);
+       
+        //отформатируем цену
+        let formatPrice = String(item.get('price')).replace(/(\d)(?=(\d{3})+([^\d]|$))/g, '$1 ');
+
+        let checked = '';
+        //если избранное, то выставим checked
+        if (item.get('isFavorite')) {
+            checked = 'checked';
+        };
+
+        //основной шаблон рендеринга объявления
+        li.innerHTML = 
+        `<p class = 'title'>${item.get('title')}</p>
+        <p class = 'main-photo'>Фото в галереи: 1 из ${item.get('pictures').length}</p>
+        <p class = 'price'>Цена: ${formatPrice}</p>
+        <p class = 'date'>Дата объявления: ${item.get('year')}</p>
+        <p class = 'seller'>Продавец: ${item.get('sellerName')}</p>
+        <p class = 'rate'>Рейтинг продавца: ${item.get('sellerRating')}</p>
+        <p><input type = "checkbox" class = 'favorite' ${checked}> Добавить в избранное</p>`;
+        
+        //запомнить индекс для сопоставления с массивом
+        li.querySelector('.favorite').arrId = i++;
+
+        //поставить обработчик добавления в избранное
+        li.querySelector('.favorite').onchange = favoriteToggle;
+        //Изображение поставить ниже информации из объявления
+        li.appendChild(img);
+    }
+    
+};
+
+
+//создаём функцию обёртку (промисификация). Внутри асинхронный XMLHttpRequest,
+//выполняющий загрузку данных JSON по предоставленному url
+let httpGet = (url) => {
+
+    return new Promise( (resolve, reject) => {
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+
+    xhr.onload = function() {
+        if (this.status == 200) {
+            //если успешно, то разрешить промис
+        resolve(this.response);
+        } else {
+        //иначе Ошибка и отклонить промис
+        var error = new Error(this.statusText);
+        error.code = this.status;
+        reject(error);
+        }
+    };
+
+    xhr.onerror = function() {
+        reject(new Error("Network Error"));
+    };
+
+    xhr.send();
+    })
+};
+
+
+
+
+
+//функция, создающая массив для работы после 
+//разбора products/sellers (после выгрузки JSON данных с сервера)
+let createAdvertItems = (products, sellers) => {
+
+    let returnArr = [];
+
+    for (let product of products.values() ){
+        //Получить данные:
+        //Заголовок, массив ссылок на картинки, цена, дата, ID продавца, категорию       
+        let {title = 'Заголовок отсутсвует',
+            pictures = 'Нет изображений',
+            price = 0,
+            year = 'Дата отсутствует',
+            relationships : { seller : sellerId },
+            category = 'Категория отсутствует' } = product;
+
+        //получить имя и рейтинг продавца, используя ID продавца
+        let {name : sellerName = 'Имя продавца не указано',
+            rating : sellerRating = '0' } = sellers[sellerId];
+
+
+        //представляем каждое объявление как ассоциативный массив
+        let map = new Map([
+            ['title', title],
+            ['pictures', pictures],
+            ['price', price],
+            ['year', year],
+            ['category',category],
+            ['sellerName', sellerName],
+            ['sellerRating', sellerRating],
+            ['isFavorite', false]
+            
+        ]);
+
+        //добавим в выходной массив
+        returnArr.push(map);
+        
+    };
+
+    //вернём массив с объявлениями
+    return returnArr;
+};
+
+//если в sessionStorage нет сохраненного массива
+//объявлений после предыдущих загрузок, то запрос на сервер
+if (!sessionStorage.getItem('sessionArray')) {
+
+    //загружаем сначала продукты для объявлений
+    httpGet("http://avito.dump.academy/products")
+        .then(response => {
+                //если удачно, то парсим JSON в products
+                products = JSON.parse(response).data;
+                //запускаем цепочку promise, загружая продавцов
+                return httpGet("http://avito.dump.academy/sellers");
+        })
+        .then(response => {
+                //если удачно, то парсим JSON в sellers
+                sellers = JSON.parse(response).data;
+                //на основании двух массивов products и sellers
+                //собрать один массив advertItems, в который войдут
+                //только необходимые данные и далее работать с ним
+                advertItems =  createAdvertItems (products, sellers);
+
+                //отрисуем объявления, предварительно скопировав исходный массив
+                advertItemsWork = Array.from(advertItems);
+                let ulNode = document.querySelector('.advertisment__list');
+                renderAdvertList (ulNode ,advertItemsWork);
+        })
+        .catch( error => {
+                //если где-то ошибка, то выводим её
+                console.log(`${error} : ${error.code}`);
+        });
+    
+
+}
+else {//если данные есть в sessionStorage, то выгрузить и распарсить 
+
+    let sessionArray = JSON.parse( sessionStorage.getItem('sessionArray') );
+    
+    for (item of sessionArray.values() ) {
+        let map = new Map (item);
+        advertItemsWork.push(map);
+    };
+
+    //отрисовать с учётом избранного
+    let ulNode = document.querySelector('.advertisment__list');
+    renderAdvertList (ulNode ,advertItemsWork);
+};
+
+//при перезагрузке странице сохранить массив объявлений в sessionStorage
+window.onunload = function () {
+   
+    let sessionArray = [];
+    for (item of advertItemsWork.values()) {
+        sessionArray.push(Array.from(item));
+    };
+   
+    //можно хранить только строки, поэтому сохраним в JSON
+    sessionStorage.setItem('sessionArray',
+        JSON.stringify( sessionArray));
+   
+};
+</script>
+
+</body>
+
+</html>
